@@ -1,4 +1,5 @@
 #!/usr/bin/python
+#-*-coding:utf-8-*-
 
 """
 MiniEdit: a simple network editor for Mininet
@@ -23,6 +24,11 @@ MINIEDIT_VERSION = '2.2.0.1'
 import sys
 from optparse import OptionParser
 from subprocess import call
+import threading ,time
+from scapy.all import *
+from scapy.contrib.openflow3 import *
+
+
 
 # pylint: disable=import-error
 if sys.version_info[0] == 2:
@@ -74,7 +80,7 @@ from mininet.cli import CLI
 from mininet.moduledeps import moduleDeps
 from mininet.topo import SingleSwitchTopo, LinearTopo, SingleSwitchReversedTopo
 from mininet.topolib import TreeTopo
-
+from Tkinter import *
 info( 'MiniEdit running against Mininet '+VERSION, '\n' )
 MININET_VERSION = re.sub(r'[^\d\.]', '', VERSION)
 if StrictVersion(MININET_VERSION) > StrictVersion('2.0'):
@@ -439,6 +445,123 @@ class CustomDialog(object):
     def okAction(self):
         self.apply()
         self.top.destroy()
+
+class MyThreadingClass(threading.Thread):
+    
+    def __init__(self, fonk ):
+        self.t = threading.Thread(target=fonk)
+
+    def startThread(self):
+        self.t.start()      
+
+    def stopThread(self):
+        self.t.join(1)
+
+
+class pingArayuz(object):
+
+    def __init__(self, master, title, hostBilgisi, hostlar):
+        self.top = Toplevel(master)
+        self.host = hostBilgisi
+        self.hosts = hostlar
+        self.options = []
+
+        Label(self.top, text="Cihaz Adı: ").grid(row = 0 , column = 0 ,sticky=E)
+        Label(self.top, text=self.host.name).grid(row = 0 , column = 1,sticky=W)
+
+        Label(self.top, text="Cihaz Ip Adresi :").grid(row = 1 , column = 0,sticky=E)
+        Label(self.top, text=self.host.IP()).grid(row = 1 , column = 1,sticky=W)
+        
+        Label(self.top, text="Hedef Cihaz :").grid(row = 2 , column = 0,sticky=E)
+        count = 0
+        for x in self.hosts:
+            if x.name != self.host.name:
+                self.options.insert(count,x.IP())
+                count += 1
+        self.selectionHostIp = StringVar(self.top)
+        for x in self.options:
+            if x != self.host.name:
+                self.selectionHostIp.set(x)
+                break
+        OptionMenu(self.top,self.selectionHostIp,*(self.options)).grid(row = 2, column = 1, sticky = W)
+        
+        Label(self.top,text="Ping Sayısı : ").grid(row = 3 , column = 0,sticky =E)
+        self.pingEntry = StringVar(self.top, value = '1')
+        Entry(self.top,textvariable=self.pingEntry).grid(row = 3 , column = 1,sticky=W)
+
+        Button(self.top, text="TAMAM", width=8, relief='raised', bd=4, bg='lightgrey', command=self.okButton).grid(row = 4 , column = 0,sticky='nswe')
+        Button(self.top, text="ÇIK", width=8, relief='raised', bd=4, bg='lightgrey', command=self.quitButton).grid(row = 4 , column = 1,sticky='nswe')
+
+    def sendPing(self):
+        self.host.cmd('ping -c %s %s' %(self.pingEntry.get(),self.selectionHostIp.get()))
+    
+    def okButton(self):
+        pingThread = MyThreadingClass(fonk = self.sendPing)
+        pingThread.startThread()
+        pingThread.stopThread()
+        self.top.destroy()
+
+
+    def quitButton(self):
+        self.top.destroy()
+
+
+
+class switchArayuz(object):
+    
+    def __init__(self, master, title,switches):
+        self.top=master
+        self.switch=switches
+        deneme = Toplevel(self.top)
+      #  a = StringVar()
+       # a = self.switch.cmd("ovs-ofctl -O OpenFlow13 dump-flows %s" %self.switch.name)
+       # Button(deneme,text = self.switch.name + "  Switch'inde Bulunan Akış Tablolarını Görmek İçin Tıklayınız.",command=partial(self.kurallar,self.switch)).pack()
+       # Label(deneme,text=self.switch.name +" Switchinde "+str(a.count('cookie'))+" adet akış tablosu vardır.").pack()
+        kuralSay=StringVar()
+        kuralSay=self.switch.cmd("ovs-ofctl -O OpenFlow13 dump-flows %s" %self.switch.name)
+
+        Label(deneme,text=self.switch.name +" Switchinde Bulunan "+str(kuralSay.count('cookie'))+" adet akış vardır",bd=8,font="bold").pack(side = TOP,fill=X)
+    
+        a = Canvas(deneme,height = 350)
+
+        a.cerceve = Frame(master=deneme, width=10000)
+        a.cerceve.pack(fill = X)
+        a.xscrollbar = Scrollbar(master=deneme)
+        a.xscrollbar.pack(side="bottom", fill=X)
+        a.xscrollbar.configure(orient="horizontal", command=a.xview)
+        a.configure(xscrollcommand=a.xscrollbar.set)
+        a.pack()
+        a.create_window((4, 4), window=a.cerceve, anchor="nw")
+        a.cerceve.bind("<Configure>", a.configure(scrollregion=a.bbox("all")))
+
+        b = StringVar()
+        b = self.switch.cmd("ovs-ofctl -O OpenFlow13 dump-flows %s" %self.switch.name)
+        b = b.splitlines()    
+
+        for x in b:
+            t =Text(a.cerceve,height=19,width=36)
+            t.pack(side=LEFT)
+            x = x.replace(",","\n")
+            t.insert(END,x)
+
+
+class switchArayuzTablo(object):
+    
+    def __init__(self, master, title,switches):
+        self.top=master
+        deneme = Toplevel(self.top)
+        deneme.geometry("400x400")
+        
+
+    
+        Label(deneme,text=switches.name +" Switchinde Bulunan Tablolar",bd=8,font="bold").pack(side = TOP,fill=X)
+        a = StringVar()
+        a = switches.cmd("ovs-ofctl -O OpenFlow13 dump-tables %s" %switches.name)
+        t =Text(deneme,height=300,width=300)
+        t.pack(side='bottom')   
+        t.insert(END,a)        
+
+
 
 class HostDialog(CustomDialog):
 
@@ -1090,11 +1213,116 @@ class ToolTip(object):
         if tw:
             tw.destroy()
 
+class linkSniffClass(object):
+    """docstring for linkSniffClass"""
+    def __init__(self,master,sslink):
+        self.top = Toplevel(master)
+        
+        self.interfaces = []
+        if sslink.intf1.name[0] != 'h':
+            self.interfaces.append(sslink.intf1.name)
+        else:
+            self.interfaces.append(sslink.intf2.name)
+        Label(self.top,text=sslink.intf1.node.name + " - "+sslink.intf2.node.name+"  arasındaki ağ trafiği, iface = " +str(self.interfaces)).pack()
+        frame = Frame(self.top)
+        frame.pack()
+
+
+        
+        self.count = 0
+        self.timer = 0.0
+        self.LinkPaketler = {}
+
+        self.listNodes = Listbox(frame, width=125, height=25, font=("Helvetica", 12))
+        self.listNodes.pack(side="left", fill="y")
+
+        scrollbar = Scrollbar(frame, orient="vertical")
+        scrollbar.config(command=self.listNodes.yview)
+        scrollbar.pack(side="right", fill="y")
+
+        self.listNodes.config(yscrollcommand=scrollbar.set)
+        self.listNodes.bind('<Double-Button>', self.paketDetayi)
+
+        self.sniffStopFilter = threading.Event()
+        self.sniffThread =threading.Thread(target=self.SniffFunction)
+        self.sniffStopThread = threading.Thread(target=self.SniffStopFunction)
+
+        self.SniffStartFunction()
+
+    def paketDetayi(self,ssss):
+        a = self.listNodes.selection_get()
+        a = a.split(" ")
+        a = int(a[0])
+        frame = Toplevel(self.top)
+        t = Text(frame,width=60,height=50)
+        t.pack()
+        t.insert(END,self.LinkPaketler[a]['show'])
+
+
+    def SniffFunction(self):
+        sniff(iface = self.interfaces,stop_filter=lambda p: self.sniffStopFilter.is_set(),prn=self.AgTrafigi,filter="icmp or arp or tcp port 6653")
+    def quit(self):
+        self.sniffStopThread.start()
+        while True:
+            self.sniffStopThread.join(0.1)
+            if self.sniffStopThread.is_alive():
+                pass
+            else:
+                break
+        self.top.quit()
+    def SniffStartFunction(self):
+        self.sniffThread.start()
+        
+    def SniffStopFunction(self):
+        self.sniffStopFilter.set()
+        while True:
+            self.sniffThread.join(1)
+            if self.sniffThread.is_alive():
+                pass
+            else:
+                break
+    def ListNodesaEkle(self,pkt):
+        self.listNodes.insert(pkt['count'],str(pkt['count'])+ "  --  "+str(pkt['time'])+"  -- >  " + pkt['summary'])
+        self.listNodes.see(END)
+
+    def AgTrafigi(self,pkt):
+        pktSummary = pkt.summary()
+        pktShow = pkt.show(dump=True)
+        if self.timer == 0.0:
+            self.timer = pkt.time
+        
+        paket ={
+        'count' : self.count,
+        'time' : pkt.time-self.timer,
+        'summary' : pktSummary,
+        'show' : pktShow
+        }
+        self.LinkPaketler.update({self.count : paket})
+        self.ListNodesaEkle(pkt = paket)
+        self.count +=1
+
+
+class adimadimkosmaArayuz(object):
+    """docstring for adimadimkosmaArayuz"""
+    def __init__(self, master):
+        self.top=master
+        deneme = Toplevel(self.top)
+        deneme.geometry("400x400")
+        deneme.grid()
+        for cmd, color in [ ( 'Stop', 'darkRed' ), ( 'Run', 'darkGreen' )]:
+            doCmd = getattr( self, 'do' + cmd )
+            b = Button( deneme, text=cmd, font=master.smallFont,
+                        fg=color)
+            b.pack( fill='x', side='bottom' )
+    def doStop():
+        pass
+    def doRun():
+        pass
 class MiniEdit( Frame ):
 
     "A simple network editor for Mininet."
 
-    def __init__( self, parent=None, cheight=600, cwidth=1000 ):
+    def __init__( self, parent=None, cheight=600, cwidth=120 ):
 
         self.defaultIpBase='10.0.0.0/8'
 
@@ -1115,13 +1343,12 @@ class MiniEdit( Frame ):
             'sflow':self.sflowDefaults,
             'netflow':self.nflowDefaults,
             'openFlowVersions':{'ovsOf10':'1',
-                                'ovsOf11':'0',
-                                'ovsOf12':'0',
-                                'ovsOf13':'0'}
+                                'ovsOf11':'1',
+                                'ovsOf12':'1',
+                                'ovsOf13':'1'}
 
         }
-
-
+       
         Frame.__init__( self, parent )
         self.action = None
         self.appName = 'MiniEdit'
@@ -1153,6 +1380,31 @@ class MiniEdit( Frame ):
         self.tools = ( 'Select', 'Host', 'Switch', 'LegacySwitch', 'LegacyRouter', 'NetLink', 'Controller' )
         self.customColors = { 'Switch': 'darkGreen', 'Host': 'blue' }
         self.toolbar = self.createToolbar()
+
+
+        self.paketler ={}
+        self.icmpPaketler =[]
+        self.listNodes = Listbox()
+
+        self.count = 0
+        self.sayac = 0
+        self.timer = 0.0
+        self.RadioButtonSelection = StringVar()
+        self.RadioButtonSelection.set('ALL')
+
+        self.radiobutton = self.RadiobuttonCreat()##############
+        self.radiobutton.grid(row=99,column=1)##################
+
+        self.listbox = self.listBoxCraet()######################
+        self.listbox.grid(row = 100 , column = 1 ) #############
+
+        
+
+        self.sniffStopFilter = threading.Event()
+        self.sniffThread =threading.Thread(target=self.SniffFunction)
+        self.sniffStopThread = threading.Thread(target=self.SniffStopFunction)
+
+
 
         # Layout
         self.toolbar.grid( column=0, row=0, sticky='nsew')
@@ -1191,6 +1443,7 @@ class MiniEdit( Frame ):
         self.hostRunPopup.add_command(label='Host Options', font=self.font)
         self.hostRunPopup.add_separator()
         self.hostRunPopup.add_command(label='Terminal', font=self.font, command=self.xterm )
+        self.hostRunPopup.add_command(label='Ping Atma', font=self.font, command=self.pingArayuzDetayi)
 
         self.legacyRouterRunPopup = Menu(self.top, tearoff=0)
         self.legacyRouterRunPopup.add_command(label='Router Options', font=self.font)
@@ -1206,6 +1459,8 @@ class MiniEdit( Frame ):
         self.switchRunPopup.add_command(label='Switch Options', font=self.font)
         self.switchRunPopup.add_separator()
         self.switchRunPopup.add_command(label='List bridge details', font=self.font, command=self.listBridge )
+        self.switchRunPopup.add_command(label='Switch Akışlar', font=self.font, command=self.switchArayuzDetayi )
+        self.switchRunPopup.add_command(label='Switch Tablolar', font=self.font, command=self.switchArayuzTabloDetayi )
 
         self.linkPopup = Menu(self.top, tearoff=0)
         self.linkPopup.add_command(label='Link Options', font=self.font)
@@ -1217,6 +1472,7 @@ class MiniEdit( Frame ):
         self.linkRunPopup.add_separator()
         self.linkRunPopup.add_command(label='Link Up', font=self.font, command=self.linkUp )
         self.linkRunPopup.add_command(label='Link Down', font=self.font, command=self.linkDown )
+        self.linkRunPopup.add_command(label='Link Üzerinden Geçen Ağ Trafiği', font=self.font, command=self.linkSniff )
 
         self.controllerPopup = Menu(self.top, tearoff=0)
         self.controllerPopup.add_command(label='Controller Options', font=self.font)
@@ -1236,14 +1492,230 @@ class MiniEdit( Frame ):
         self.switchCount = 0
         self.controllerCount = 0
         self.net = None
-
         # Close window gracefully
         Wm.wm_protocol( self.top, name='WM_DELETE_WINDOW', func=self.quit )
+    
+
+    def paketDetayi(self,ssss):
+        a = self.listNodes.selection_get()
+        a = a.split(" ")
+        a = int(a[0])
+        frame = Toplevel(self)
+        t = Text(frame,width=60,height=50)
+        t.pack()
+        t.insert(END,self.paketler[a]['paket'].show(dump=True))
+        
+    def linkSniff( self, _ignore=None ):
+        if ( self.selection is None or
+             self.net is None):
+            return
+        link = self.selection
+        linkDetail =  self.links[link]
+        src = linkDetail['src']
+        dst = linkDetail['dest']
+        srcName, dstName = src[ 'text' ], dst[ 'text' ]
+        linkk = None
+        for x in self.net.links:
+            if (str(x.intf1.node) == srcName and str(x.intf2.node) == dstName) or (str(x.intf2.node) == srcName and str(x.intf1.node) == dstName):
+                linkk = x
+                break
+
+        linkSniffClass(self,sslink=linkk)
 
     def quit( self ):
         "Stop our network, if any, then quit."
+
         self.stop()
         Frame.quit( self )
+
+    def RadiobuttonCreat(self):
+
+        frame = Frame(self)
+        
+        Radiobutton(frame, text='Tüm Ağ Trafiği', variable = self.RadioButtonSelection, value='ALL',command = self.ListboxYazdir).grid(row=0, column=1, columnspan=1, sticky='w')
+        Radiobutton(frame, text='Controller - Switch Arasındaki Ağ Trafiği', variable = self.RadioButtonSelection, value='CS',command = self.ListboxYazdir).grid(row=0, column=2, columnspan=1, sticky='w')
+        Radiobutton(frame, text='Switch - Switch Arasındaki Ağ Trafiği', variable = self.RadioButtonSelection, value='SS',command = self.ListboxYazdir).grid(row=0, column=3, columnspan=1, sticky='w')
+        Radiobutton(frame, text='Sadece FlowMod Mesajları',variable = self.RadioButtonSelection,value='FlowMod',command = self.ListboxYazdir).grid(row=0,column=4,columnspan=1,sticky='w')
+        Radiobutton(frame, text='Controller Haricindeki Mesajlar',variable = self.RadioButtonSelection,value='NC',command = self.ListboxYazdir).grid(row=0,column=5,columnspan=1,sticky='w')
+        return frame 
+
+    def listBoxCraet(self):
+
+        frame = Frame(self)
+        
+        self.listNodes = Listbox(frame, width=self.cwidth+15, height=12, font=("Helvetica", 12))
+        self.listNodes.pack(side="left", fill="y")
+            
+        scrollbar = Scrollbar(frame, orient="vertical")
+        scrollbar.config(command=self.listNodes.yview)
+        scrollbar.pack(side="right", fill="y")
+
+        self.listNodes.config(yscrollcommand=scrollbar.set)
+        self.listNodes.bind('<Double-Button>', self.paketDetayi)
+        return frame 
+
+    def TumAgTrafigi(self,pkt):
+        commit = None
+        if pkt.sniffed_on == "lo":
+            commit = "CS"
+        if commit == None:
+            for x in self.net.links:
+                if x.intf1.name == pkt.sniffed_on:
+                    if x.intf2.name[0] == 's':
+                        commit = "SS"
+        if commit == None:
+            commit = "SH"
+
+        if self.timer == 0.0:
+            self.timer = pkt.time
+        paket ={
+        'paket' : pkt,
+        'count' : self.count,
+        'commit' : commit,
+        'time' : pkt.time - self.timer
+        }
+        self.paketler.update({self.count : paket})
+        if pkt.summary().find("ICMP")>0:
+            self.pingGuzergah(co = self.count)
+            self.icmpPaketler.append(pkt)
+        #if pkt.summary().find("ICMP")>0:
+        #    if pkt[ICMP].type == 0:
+        #        self.deneme()
+        self.count +=1
+        self.ListboxYazdirThread(pkt = paket)
+
+    def deneme(self):
+        time = self.icmpPaketler[0].time
+        interfaces = []
+        for iface in self.icmpPaketler:
+            if iface[ICMP].type == 8:
+                interfaces.append(iface.sniffed_on)
+        name = []
+        name1 = []
+        name2 = []
+        
+        for linkName in interfaces:
+            for x in self.net.links:
+                if x.intf1.name == linkName:
+                    break
+                elif x.intf2.name == linkName:
+                    break
+            name.append(x.intf1.node.name)
+            name.append(x.intf2.node.name)        
+            name1.append(x.intf1.node.name)
+            name2.append(x.intf2.node.name)        
+        srcdst = []
+        for a in name:
+            if name.count(a) == 1:
+                srcdst.append(a)
+        change = None        
+        count , count1 , count2 = 0, 0, 0
+        
+
+
+    def ListboxYazdir(self):
+        self.listNodes.delete(0,END)
+
+    def ListboxYazdirThread(self,pkt):
+        if self.RadioButtonSelection.get() == 'ALL':
+            self.listNodes.insert(pkt['count'],str(pkt['count'])+"  --  " +str(pkt['time'])+"  -->  "+pkt['paket'].summary())
+            self.listNodes.see(END)
+        elif self.RadioButtonSelection.get() == 'CS':
+            if pkt['commit'] == 'CS':
+                self.listNodes.insert(pkt['count'],str(pkt['count'])+"  --  " +str(pkt['time'])+"  -->  "+pkt['paket'].summary())
+                self.listNodes.see(END)
+        elif self.RadioButtonSelection.get() == 'SS':
+            if pkt['commit'] == 'SS':
+                self.listNodes.insert(pkt['count'],str(pkt['count'])+"  --  " +str(pkt['time'])+"  -->  "+pkt['paket'].summary())
+                self.listNodes.see(END)
+        elif self.RadioButtonSelection.get() =='FlowMod':
+            if (pkt['paket'].show(dump=True).find("###[ OFPT_FLOW_MOD ]###") > 0):
+                self.listNodes.insert(pkt['count'],str(pkt['count'])+"  --  " +str(pkt['time'])+"  -->  "+pkt['paket'].summary())
+                self.listNodes.see(END)
+        elif self.RadioButtonSelection.get() =='NC':
+            if pkt['commit'] != 'CS':
+                self.listNodes.insert(pkt['count'],str(pkt['count'])+"  --  " +str(pkt['time'])+"  -->  "+pkt['paket'].summary())
+                self.listNodes.see(END)
+        else:
+            self.listNodes.insert(END,"HATA")
+            self.listNodes.see(END)
+    
+
+    def SniffFunction(self):
+        interfaces = []
+        for x in self.net.links:
+            if x.intf1.name[0] != 'h':
+                interfaces.append(x.intf1.name)
+            else:
+                interfaces.append(x.intf2.name)
+        interfaces.append('lo')
+        sniff(iface = interfaces,stop_filter=lambda p: self.sniffStopFilter.is_set(),prn=self.TumAgTrafigi,filter="icmp or arp or tcp port 6653")
+            
+    def SniffStartFunction(self):
+        self.sniffThread.start()
+        
+    def SniffStopFunction(self):
+        self.sniffStopFilter.set()
+        while True:
+            self.sniffThread.join(1)
+            if self.sniffThread.is_alive():
+                pass
+            else:
+                break
+
+    def switchArayuzDetayi(self,_ignore=None):
+        if ( self.selection is None or
+             self.net is None or
+             self.selection not in self.itemToWidget ):
+            return
+        name = self.itemToWidget[ self.selection ][ 'text' ]
+        tags = self.canvas.gettags( self.selection )
+
+        if name not in self.net.nameToNode:
+            return
+        for x in self.net.switches:
+            if x.name == name:
+                switchArayuz(self, title="Switch Tablolar",switches =x)
+     
+
+    def switchArayuzTabloDetayi(self,_ignore=None):
+        if ( self.selection is None or
+             self.net is None or
+             self.selection not in self.itemToWidget ):
+            return
+        name = self.itemToWidget[ self.selection ][ 'text' ]
+        tags = self.canvas.gettags( self.selection )
+
+        if name not in self.net.nameToNode:
+            return
+     
+        for x in self.net.switches:
+            if x.name == name:
+                switchArayuzTablo(self, title="Switch Tablolar",switches =x)
+
+
+    def adimadim(self):
+        adimadimkosmaArayuz(self)
+
+
+    def pingGuzergah(self,co):
+        
+        linkName=self.paketler[co]['paket'].sniffed_on
+        for x in self.net.links:
+            if x.intf1.name == linkName:
+                break
+            elif x.intf2.name == linkName:
+                break
+        for c in self.links:
+            linkDetail =  self.links[c]
+            src = linkDetail['src']
+            dst = linkDetail['dest']
+            srcName, dstName = src[ 'text' ], dst[ 'text' ]
+            if (str(x.intf1.node) == srcName and str(x.intf2.node) == dstName) or (str(x.intf2.node) == srcName and str(x.intf1.node) == dstName):
+                linkk = c
+                break
+        self.canvas.itemconfig( linkk, fill='orange' )
+
 
     def createMenubar( self ):
         "Create our menu bar."
@@ -1378,26 +1850,32 @@ class MiniEdit( Frame ):
         Label( toolbar, text='' ).pack()
 
         # Commands
-        for cmd, color in [ ( 'Stop', 'darkRed' ), ( 'Run', 'darkGreen' ) ]:
+        for cmd, color in [ ( 'Stop', 'darkRed' ), ( 'Run', 'darkGreen' )]:
             doCmd = getattr( self, 'do' + cmd )
             b = Button( toolbar, text=cmd, font=self.smallFont,
                         fg=color, command=doCmd )
             b.pack( fill='x', side='bottom' )
-
+        Button(toolbar,text="Adım Adım Koşma", font=self.smallFont,fg='blue',command=self.doStepByStep).pack(fill='x',side='bottom')
         return toolbar
 
+    def doStepByStep(self):
+        self.adimadim()
     def doRun( self ):
         "Run command."
         self.activate( 'Select' )
         for tool in self.tools:
             self.buttons[ tool ].config( state='disabled' )
         self.start()
+        self.SniffStartFunction()
+
 
     def doStop( self ):
         "Stop command."
+        
         self.stop()
         for tool in self.tools:
             self.buttons[ tool ].config( state='normal' )
+        
 
     def addNode( self, node, nodeNum, x, y, name=None):
         "Add a new node to our canvas."
@@ -1554,7 +2032,7 @@ class MiniEdit( Frame ):
                                                         dx,
                                                         dy,
                                                         width=4,
-                                                        fill='red',
+                                                        fill='red',     ##################################################C - S İLK LİNK RENGİ
                                                         dash=(6, 4, 2, 4),
                                                         tag='link' )
                     c.itemconfig(self.link, tags=c.gettags(self.link)+('control',))
@@ -1589,7 +2067,7 @@ class MiniEdit( Frame ):
             dx, dy = self.canvas.coords( self.widgetToItem[ dest]  )
 
             self.link = self.canvas.create_line( sx, sy, dx, dy, width=4,
-                                             fill='blue', tag='link' )
+                                             fill='blue', tag='link' ) ############################################################################################### İLK LİNK RENGİ
             c.itemconfig(self.link, tags=c.gettags(self.link)+('data',))
             self.addLink( src, dest, linkopts=link['opts'] )
             self.createDataLinkBindings()
@@ -2153,11 +2631,11 @@ class MiniEdit( Frame ):
             self.hostOpts[name]['hostname']=name
         if 'Controller' == node:
             name = self.nodePrefixes[ node ] + str( self.controllerCount )
-            ctrlr = { 'controllerType': 'ref',
+            ctrlr = { 'controllerType': 'ovsc',
                       'hostname': name,
                       'controllerProtocol': 'tcp',
                       'remoteIP': '127.0.0.1',
-                      'remotePort': 6633}
+                      'remotePort': 6653}
             self.controllers[name] = ctrlr
             # We want to start controller count at 0
             self.controllerCount += 1
@@ -2332,7 +2810,7 @@ class MiniEdit( Frame ):
 
         def unhighlight( _event, link=self.link ):
             "Unhighlight item on mouse exit."
-            self.canvas.itemconfig( link, fill='blue' )
+            self.canvas.itemconfig( link, fill='blue' ) ################################################################################################ LİNKE GELDİKTEN SONRA ALDIĞI RENK
             #self.selectItem( None )
 
         self.canvas.tag_bind( self.link, '<Enter>', highlight )
@@ -2505,6 +2983,21 @@ class MiniEdit( Frame ):
                 newHostOpts['privateDirectory'] = hostBox.result['privateDirectory']
             self.hostOpts[name] = newHostOpts
             info( 'New host details for ' + name + ' = ' + str(newHostOpts), '\n' )
+
+    def pingArayuzDetayi(self,_ignore=None):
+        if (self.selection is None or self.net is None or self.selection not in self.itemToWidget):
+            return
+        name = self.itemToWidget[ self.selection ][ 'text' ]
+        tags = self.canvas.gettags( self.selection )
+
+        if name not in self.net.nameToNode:
+            return
+
+        for x in self.net.hosts:
+            if x.name == self.hostOpts[name]['hostname']:
+                client = x
+
+        pingArayuz(self,title='Ping Arayüzü',hostBilgisi = client,hostlar=self.net.hosts)
 
     def switchDetails( self, _ignore=None ):
         if ( self.selection is None or
@@ -3052,6 +3545,10 @@ class MiniEdit( Frame ):
 
     def stop( self ):
         "Stop network."
+        if self.sniffThread.is_alive():
+            self.sniffStopThread.start()
+            time.sleep(2)
+
         if self.net is not None:
             # Stop host details
             for widget in self.widgetToItem:
@@ -3571,6 +4068,12 @@ gGPLHwLwcMIo12Qxu0ABAQA7
         """ )
     }
 
+class paket(object):
+    """docstring for paket """
+    def __init__(self, arg):
+        super(paket, self).__init__()
+        self.arg = arg
+        
 def addDictOption( opts, choicesDict, default, name, helpStr=None ):
     """Convenience function to add choices dicts to OptionParser.
        opts: OptionParser instance

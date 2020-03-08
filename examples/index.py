@@ -1,4 +1,6 @@
 #!/usr/bin/python
+#-*-coding:utf-8-*-
+
 
 """
 MiniEdit: a simple network editor for Mininet
@@ -23,6 +25,8 @@ MINIEDIT_VERSION = '2.2.0.1'
 import sys
 from optparse import OptionParser
 from subprocess import call
+from upgradeClass import *
+
 
 # pylint: disable=import-error
 if sys.version_info[0] == 2:
@@ -1094,7 +1098,7 @@ class MiniEdit( Frame ):
 
     "A simple network editor for Mininet."
 
-    def __init__( self, parent=None, cheight=600, cwidth=1000 ):
+    def __init__( self, parent=None, cheight=600, cwidth=120 ):
 
         self.defaultIpBase='10.0.0.0/8'
 
@@ -1115,9 +1119,9 @@ class MiniEdit( Frame ):
             'sflow':self.sflowDefaults,
             'netflow':self.nflowDefaults,
             'openFlowVersions':{'ovsOf10':'1',
-                                'ovsOf11':'0',
-                                'ovsOf12':'0',
-                                'ovsOf13':'0'}
+                                'ovsOf11':'1',
+                                'ovsOf12':'1',
+                                'ovsOf13':'1'}
 
         }
 
@@ -1239,10 +1243,328 @@ class MiniEdit( Frame ):
 
         # Close window gracefully
         Wm.wm_protocol( self.top, name='WM_DELETE_WINDOW', func=self.quit )
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+
+        self.packets = {}
+        self.listNodes = Listbox()
+        self.sniffingOnAllNetworkRun = None
+        self.icon = icon()
+        self.returnTopoCoordinatdic = None
+
+        self.radioButtonSelection = StringVar()
+        self.radioButtonSelection.set('ALL')
+
+        self.radioButton = self.radioButtonCreat()
+        self.radioButton.grid(row=99,column=1)
+
+        self.listbox = self.listBoxCreat()
+        self.listbox.grid(row = 100,column=1)
+
+        self.hostRunPopup.add_command(label='Ping Atma', font=self.font, command=self.pingInterfacesDetail)
+        self.switchRunPopup.add_command(label='Switch Akışlar', font=self.font, command=self.flowsOnSwitchDetail )
+        self.switchRunPopup.add_command(label='Switch Tablolar', font=self.font, command=self.tablesOnSwitchDetail )
+        self.linkRunPopup.add_command(label='Link Üzerinden Geçen Ağ Trafiği', font=self.font, command=self.sniffingOnLinkDetail )
+
+        self.controllerlinkPopup = Menu(self.top, tearoff=0)
+        self.controllerlinkPopup.add_command(label='Link Options', font=self.font)
+        self.controllerlinkPopup.add_separator()
+        
+
+        self.controllerlinkRunPopup = Menu(self.top, tearoff=0)
+        self.controllerlinkRunPopup.add_command(label='Link Options', font=self.font)
+        self.controllerlinkRunPopup.add_separator()
+        self.controllerlinkRunPopup.add_command(label='Link Üzerinden Geçen Ağ Trafiği', font=self.font, command=self.controllerSniffingOnLinkDetail )
+
+
+    def pingInterfacesDetail(self,_ignore=None):
+        if (self.selection is None or self.net is None or self.selection not in self.itemToWidget):
+            return
+        name = self.itemToWidget[ self.selection ][ 'text' ]
+        tags = self.canvas.gettags( self.selection )
+
+        if name not in self.net.nameToNode:
+            return
+
+        for x in self.net.hosts:
+            if x.name == self.hostOpts[name]['hostname']:
+                client = x
+
+        PingInterfaces(self,host = client,hosts=self.net.hosts)
+
+    def flowsOnSwitchDetail(self,_ignore=None):
+        if ( self.selection is None or
+             self.net is None or
+             self.selection not in self.itemToWidget ):
+            return
+        name = self.itemToWidget[ self.selection ][ 'text' ]
+        tags = self.canvas.gettags( self.selection )
+
+        if name not in self.net.nameToNode:
+            return
+        for x in self.net.switches:
+            if x.name == name:
+                break
+        FlowsOnSwitch(self,switch =x)
+
+    def tablesOnSwitchDetail(self,_ignore=None):
+        if ( self.selection is None or
+             self.net is None or
+             self.selection not in self.itemToWidget ):
+            return
+        name = self.itemToWidget[ self.selection ][ 'text' ]
+        tags = self.canvas.gettags( self.selection )
+
+        if name not in self.net.nameToNode:
+            return
+     
+        for x in self.net.switches:
+            if x.name == name:
+                break
+        TablesOnSwitch(self,switch =x)
+
+    def sniffingOnLinkDetail(self,_ignore=None):
+        if ( self.selection is None or
+             self.net is None):
+            return
+        link = self.selection
+        linkDetail =  self.links[link]
+        src = linkDetail['src']
+        dst = linkDetail['dest']
+        srcName, dstName = src[ 'text' ], dst[ 'text' ]
+        linkk = None
+        for x in self.net.links:
+            if (str(x.intf1.node) == srcName and str(x.intf2.node) == dstName) or (str(x.intf2.node) == srcName and str(x.intf1.node) == dstName):
+                linkk = x
+                break
+
+        SniffingOnLink(self,link=linkk)
+
+    def controllerSniffingOnLinkDetail(self,_ignore=None):
+        if ( self.selection is None or
+             self.net is None):
+            return
+        link = self.selection
+        linkDetail =  self.links[link]
+        src = linkDetail['src']
+        dst = linkDetail['dest']
+        srcName, dstName = src[ 'text' ], dst[ 'text' ]
+        
+        for x in self.net.switches:
+            break
+        a = x.cmd("lsof -i -P -n | grep 127.0.0.1:6653-")
+        a = a.splitlines()
+        b = {}
+        c = 0
+        for x in a:
+            b.update({c :x.split()})
+            c+=1
+        sport = {}
+        c = 0
+        for x in self.net.switches:
+            sport.update({x.name : b[c][8][26:]})
+            c+=1
+        if srcName[0] == 's':
+            port = sport[srcName]
+            name = srcName
+        else:
+            port = sport[dstName]
+            name = dstName
+
+        ControllerSniffingOnLink(self,name,port)
+
+    def doStepByStepDetail(self):
+        DoStepByStep(self , packets = self.packets, canvas = self.canvas,icon = self.icon,coordinate=self.returnTopoCoordinatdic)
+
+    def radioButtonCreat(self):
+        frame = Frame(self)
+        
+        Radiobutton(frame, text='Tüm Ağ Trafiği', variable = self.radioButtonSelection, value='ALL',command = self.radioButtonSelected).grid(row=0, column=1, columnspan=1, sticky='w')
+        Radiobutton(frame, text='Controller - Switch Arasındaki Ağ Trafiği', variable = self.radioButtonSelection, value='CS',command = self.radioButtonSelected).grid(row=0, column=2, columnspan=1, sticky='w')
+        Radiobutton(frame, text='Switch - Switch Arasındaki Ağ Trafiği', variable = self.radioButtonSelection, value='SS',command = self.radioButtonSelected).grid(row=0, column=3, columnspan=1, sticky='w')
+        Radiobutton(frame, text='Sadece FlowMod Mesajları',variable = self.radioButtonSelection,value='FlowMod',command = self.radioButtonSelected).grid(row=0,column=4,columnspan=1,sticky='w')
+        Radiobutton(frame, text='Controller Haricindeki Mesajlar',variable = self.radioButtonSelection,value='NC',command = self.radioButtonSelected).grid(row=0,column=5,columnspan=1,sticky='w')
+        
+        return frame
+
+    def radioButtonSelected(self):
+        self.listNodes.delete(0,END)
+        pass
+
+    def listBoxCreat(self):
+        frame = Frame(self)
+        
+        self.listNodes = Listbox(frame, width=self.cwidth+15, height=12, font=("Helvetica", 12))
+        self.listNodes.pack(side="left", fill="y")
+            
+        scrollbar = Scrollbar(frame, orient="vertical")
+        scrollbar.config(command=self.listNodes.yview)
+        scrollbar.pack(side="right", fill="y")
+
+        self.listNodes.config(yscrollcommand=scrollbar.set)
+        self.listNodes.bind('<Double-Button-1>', self.showToPacketDetail)
+        return frame
+
+    def addToListNodes(self,aPacket):
+        if self.radioButtonSelection.get() == 'ALL':
+            self.listNodes.insert(aPacket['count'],str(aPacket['count'])+"  --  " +str(aPacket['time'])+"  -->  "+aPacket['packet'].summary())
+            self.listNodes.see(END)
+        elif self.radioButtonSelection.get() == 'CS':
+            if aPacket['commit'] == 'CS':
+                self.listNodes.insert(aPacket['count'],str(aPacket['count'])+"  --  " +str(aPacket['time'])+"  -->  "+aPacket['packet'].summary())
+                self.listNodes.see(END)
+        elif self.radioButtonSelection.get() == 'SS':
+            if aPacket['commit'] == 'SS':
+                self.listNodes.insert(aPacket['count'],str(aPacket['count'])+"  --  " +str(aPacket['time'])+"  -->  "+aPacket['packet'].summary())
+                self.listNodes.see(END)
+        elif self.radioButtonSelection.get() =='FlowMod':
+            if (aPacket['packet'].show(dump=True).find("###[ OFPT_FLOW_MOD ]###") > 0):
+                self.listNodes.insert(aPacket['count'],str(aPacket['count'])+"  --  " +str(aPacket['time'])+"  -->  "+aPacket['packet'].summary())
+                self.listNodes.see(END)
+        elif self.radioButtonSelection.get() =='NC':
+            if aPacket['commit'] != 'CS':
+                self.listNodes.insert(aPacket['count'],str(aPacket['count'])+"  --  " +str(aPacket['time'])+"  -->  "+aPacket['packet'].summary())
+                self.listNodes.see(END)
+        else:
+            self.listNodes.insert(END,"HATA")
+            self.listNodes.see(END)
+
+    def showToPacketDetail(self,event=None):
+        selectionPacket = self.listNodes.selection_get()
+        selectionPacketCount = int((selectionPacket.split(" "))[0])
+        top = Toplevel(self)
+        selectionPacketDetailTextBox = Text(top,width=60,height=50)
+        selectionPacketDetailTextBox.pack()
+        selectionPacketDetailTextBox.insert(END,self.packets[selectionPacketCount]['packet'].show(dump=True))
+
+    def returnTopoCoordinat(self):
+        savingDictionary = {}
+        hostsToSave = []
+        switchesToSave = []
+        controllersToSave = []
+        
+        for x in self.net.switches:
+            break
+        a = x.cmd("lsof -i -P -n | grep 127.0.0.1:6653-")
+        a = a.splitlines()
+        b = {}
+        c = 0
+        for x in a:
+            b.update({c :x.split()})
+            c+=1
+        sport = {}
+        c = 0
+        for x in self.net.switches:
+            sport.update({x.name : b[c][8][26:]})
+            c+=1
+        
+        for widget in self.widgetToItem:
+            name = widget[ 'text' ]
+            tags = self.canvas.gettags( self.widgetToItem[ widget ] )
+            x1, y1 = self.canvas.coords( self.widgetToItem[ widget ] )
+            if 'Switch' in tags or 'LegacySwitch' in tags or 'LegacyRouter' in tags:
+                nodeToSave = {'x':str(x1),
+                              'y':str(y1),
+                              'name':self.switchOpts[name]['hostname'],
+                              'port':sport[name] }
+                switchesToSave.append(nodeToSave)
+            elif 'Host' in tags:
+                for hh in self.net.hosts:
+                    if hh.name == name:
+                        break
+                nodeToSave = {'x':str(x1),
+                              'y':str(y1),
+                              'name':self.hostOpts[name]['hostname'],
+                              'ip':hh.IP() }
+                hostsToSave.append(nodeToSave)
+            elif 'Controller' in tags:
+                nodeToSave = {'x':str(x1),
+                              'y':str(y1),
+                              'name':self.controllers[name]['hostname'],
+                              'port':self.controllers[name]['remotePort'] }
+                controllersToSave.append(nodeToSave)
+            else:
+                raise Exception( "Cannot create mystery node: " + name )
+        savingDictionary['hosts'] = hostsToSave
+        savingDictionary['switches'] = switchesToSave
+        savingDictionary['controllers'] = controllersToSave
+
+        # Save Links
+        linksToSave = []
+        for link in self.links.values():
+            src = link['src']
+            dst = link['dest']
+            linkopts = link['linkOpts']
+
+            srcName, dstName = src[ 'text' ], dst[ 'text' ]
+            
+            if link['type'] == 'data':
+                for x in self.net.links:
+                    if (str(x.intf1.node) == srcName and str(x.intf2.node) == dstName) or (str(x.intf2.node) == srcName and str(x.intf1.node) == dstName):
+                        break
+                if x.intf1.name[0] != 'h':
+                    linkName = x.intf1.name
+                else:
+                    linkName = x.intf2.name
+                linkToSave = {'src':srcName,
+                              'dest':dstName,
+                              'opts':linkopts,
+                              'linkName':linkName}
+                linksToSave.append(linkToSave)
+        savingDictionary['links'] = linksToSave
+        return savingDictionary
+
+
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
+#*********************************************************************************************************************************************************************************************
 
     def quit( self ):
         "Stop our network, if any, then quit."
-        self.stop()
+        self.stop()    
         Frame.quit( self )
 
     def createMenubar( self ):
@@ -1383,6 +1705,8 @@ class MiniEdit( Frame ):
             b = Button( toolbar, text=cmd, font=self.smallFont,
                         fg=color, command=doCmd )
             b.pack( fill='x', side='bottom' )
+        self.stepButton = Button(toolbar,text="Adım Adım Koşma",state="disabled", font=self.smallFont,fg='blue',command=self.doStepByStepDetail)
+        self.stepButton.pack(fill='x',side='bottom')
 
         return toolbar
 
@@ -1392,10 +1716,21 @@ class MiniEdit( Frame ):
         for tool in self.tools:
             self.buttons[ tool ].config( state='disabled' )
         self.start()
-
+        self.stepButton.config( state='disabled' )
+        if len(self.links) > 0:
+            self.packets = {}
+            self.sniffingOnAllNetworkRun =SniffingOnAllNetwork(master = self,net = self.net)
+        
     def doStop( self ):
         "Stop command."
+        self.returnTopoCoordinatdic = self.returnTopoCoordinat()
+        try:
+            self.sniffingOnAllNetworkRun.sniffStopFunctionStart()
+        except Exception as e:
+            pass
+
         self.stop()
+        self.stepButton.config( state='normal' )
         for tool in self.tools:
             self.buttons[ tool ].config( state='normal' )
 
@@ -2153,11 +2488,11 @@ class MiniEdit( Frame ):
             self.hostOpts[name]['hostname']=name
         if 'Controller' == node:
             name = self.nodePrefixes[ node ] + str( self.controllerCount )
-            ctrlr = { 'controllerType': 'ref',
+            ctrlr = { 'controllerType': 'ovsc',
                       'hostname': name,
                       'controllerProtocol': 'tcp',
                       'remoteIP': '127.0.0.1',
-                      'remotePort': 6633}
+                      'remotePort': 6653}
             self.controllers[name] = ctrlr
             # We want to start controller count at 0
             self.controllerCount += 1
@@ -2314,6 +2649,7 @@ class MiniEdit( Frame ):
         self.canvas.tag_bind( self.link, '<Enter>', highlight )
         self.canvas.tag_bind( self.link, '<Leave>', unhighlight )
         self.canvas.tag_bind( self.link, '<ButtonPress-1>', select )
+        self.canvas.tag_bind( self.link, '<Button-3>', self.do_contollerlinkPopup )
 
     def createDataLinkBindings( self ):
         "Create a set of bindings for nodes."
@@ -3052,6 +3388,7 @@ class MiniEdit( Frame ):
 
     def stop( self ):
         "Stop network."
+        
         if self.net is not None:
             # Stop host details
             for widget in self.widgetToItem:
@@ -3088,6 +3425,21 @@ class MiniEdit( Frame ):
             finally:
                 # make sure to release the grab (Tk 8.0a1 only)
                 self.linkRunPopup.grab_release()
+
+    def do_contollerlinkPopup(self, event):
+        # display the popup menu
+        if self.net is None:
+            try:
+                self.controllerlinkPopup.tk_popup(event.x_root, event.y_root, 0)
+            finally:
+                # make sure to release the grab (Tk 8.0a1 only)
+                self.controllerlinkPopup.grab_release()
+        else:
+            try:
+                self.controllerlinkRunPopup.tk_popup(event.x_root, event.y_root, 0)
+            finally:
+                # make sure to release the grab (Tk 8.0a1 only)
+                self.controllerlinkRunPopup.grab_release()
 
     def do_controllerPopup(self, event):
         # display the popup menu
@@ -3357,11 +3709,11 @@ def miniEditImages():
     # Image data. Git will be unhappy. However, the alternative
     # is to keep track of separate binary files, which is also
     # unappealing.
-
+    a ="/usr/include/X11/bitmaps/left_ptr"
     return {
         'Select': BitmapImage(
-            file='/usr/include/X11/bitmaps/left_ptr' ),
-
+            file= a),
+        
         'Switch': PhotoImage( data=r"""
 R0lGODlhLgAgAPcAAB2ZxGq61imex4zH3RWWwmK41tzd3vn9/jCiyfX7/Q6SwFay0gBlmtnZ2snJ
 yr+2tAuMu6rY6D6kyfHx8XO/2Uqszjmly6DU5uXz+JLN4uz3+kSrzlKx0ZeZm2K21BuYw67a6QB9
@@ -3570,6 +3922,16 @@ gGPLHwLwcMIo12Qxu0ABAQA7
             lBmxI8mSNknm1Dnx5sCAADs=
         """ )
     }
+
+def icon():
+    a = []
+    a.insert(0,PhotoImage(data=r"""iVBORw0KGgoAAAANSUhEUgAAABkAAAAZCAYAAADE6YVjAAAACXBIWXMAAFxGAABcRgEUlENBAAAB3ElEQVRIDeWVv0vDQBTH71eSpaLgj39BHAtO4uosONZZcBJE/CO0iIOC4OCgdhGULlIEodBOLoKLKOJfIC5iC6bJnd+kXpqkgTRNXbTt4957d+/7yUsuPUL+yoeHGxEUX86LjDNHStkOz43EN7kxZnJxgvHTFOIF/obFxMRIxLUIRLdhbUsYyjduKMSPsDWT8YJeN8zIdJFSagrm6JhQQiilc7BjOA10VcLNtIL5DE4AgZiEJZYiXwSowhi5RVfLnNDIs0wsCiUDSCiX7HY7WwSsyjmvWUIsJS/szw4O+an1uoV5gJrFxSWe2UK/bDSTGdIrxy2jdAVxHaBzWLE3F/VyQLpC6MqErSJqAHSEZzYbRRCSG6IFASrA1tFdE7CSznvjyCBaFKBp7JFDHf8KBO/amyJkMwwR4SCPD/EP1J8pog46rvsc1soNgfgXBC9ge7brPITFtT80BOIu/niqRJGyLZ07LZg0ZoZA3NO5ge3YbqeeJBrPDQzBvSb4NTHudqR7Dd+nxQWT4gCCK/S3M7ZgbJ2vdg/JsiPVlVSuHVuQGgYQiL9jdRB3r1M94XL3CZUV25WtVLW0BTgRx/GmnmJs4WR8hb+FM2QyrS7zvMEEA2TeEGImc/G/KPgGBcB589ym52gAAAAASUVORK5CYII="""))
+    a.insert(1,PhotoImage(data=r"""iVBORw0KGgoAAAANSUhEUgAAABkAAAAZCAYAAADE6YVjAAAACXBIWXMAAFxGAABcRgEUlENBAAABcElEQVRIDe1VzUoDQQxOJpldRFTwCbSIImJB8CaC+EyePXj2jURRz/6gB09S38AfPImy8Zu6S8eZLbV4Kx0ISb4vP9tQEqJJeTLsh5TEKqIdZvqozD7TOGWZQcASE71XZFXKj/QLkfVS9KwQfYHcedH9OAnYLuSm5i+9+M2YH2mrky0kn5TqrRH4PTReDMloOA//oeGChn9eslsdVtylhCM+Brad4MtEvBIwjKcD1bebGGBdcu6o8VOtKcDGc8DQa8Aws8HzAQEfcizmCQHAFgLf9rImSP5dIM2KmidU+JDWl42rNeqf4LTJWAOcjms6rrEmMFZw/u8y7K2hCwK1A9fO57XqT8l2l7G9YX9VHG1AMwsb6+dwsX3Bhj9YYuBD29e6Zqby7mwHiLpKIp/I7DFgqNdDxb4dxdybVYeRP9osxK/hEJ1CP0PfQvbiLPg7kOuav8AV3Yj5P9tKqoXzXWUX7kv2SpbZmu/fmSxgIoFvNtJMNRibFkwAAAAASUVORK5CYII="""))
+    a.insert(2,PhotoImage(data=r"""iVBORw0KGgoAAAANSUhEUgAAABkAAAAZCAYAAADE6YVjAAAACXBIWXMAAFxGAABcRgEUlENBAAABhElEQVRIDe1VvUrEQBCeyV4CFspxhY34FL7BWVxlYyU+gNiIrY9hIVj5ALaCWNr6gxYHPoLYKIiNcEl2/DZhc5PlCORyWshtSHZ25pv5dmc3s0T/pbFeSEImJsM7RDxilj4JMZ7mJuRg3/g+iNBlarP30KEKERvTR8QLKHaJK3WIbxyLyAuI9kE01sAqWmJ6p8x8rI3zyCB6gt9wkmdf3j9yAggO0O15Zcd+C/4jHcO4gTHRDXI/QLoKUg1oKyMbbhs/crHX3rfnBKgH6DoT+KCIuDqVp4FxRhbYBAdOtQXOXkWtjlOp+x0SxefEJUmQkObhMl3N+QmsPl3ByQ5QHYcFCX7QCd7aX9otrqTav1yJyDk4qtKsAW1lV1Ew23vtV67E8gmK2q02zC0LvaLiXmn/otRbstZw9AzDEKV6XQPayLiwkA0+xIX1qP1qG55EZhNX7xEA2wCvaGCzLBlmPxYrZ6nN70JsjcQbYzZrKGsbUl5AXj2zdzvAYj9Tyd9mAv5K+QOsRGRQCbAwRwAAAABJRU5ErkJggg=="""))
+    a.insert(3,PhotoImage(data=r"""iVBORw0KGgoAAAANSUhEUgAAABkAAAAZCAYAAADE6YVjAAAACXBIWXMAAFxGAABcRgEUlENBAAABsklEQVRIDe1UPUsDQRDd2d27BMEPbGwELYOtla2tjfgzLCQWiqWV1v4AUdBK0DaK1rZaKSpoK/YBvXg3vo253Ob2NsmVYg6Gnc/3ZiezEWL0/YkJaKmrJJUaptmKkLJKNNYvV+aDodLTksRxQHQYSjWTj9s2cidZyZNEqkYo9YId66ujcBfSquiAcT4GUq34ChBfN3md3FtfnnMTZp6AtEwBEdUgFwDbD5UaLwCZy3y0lOm9mkMCUIZ0s6CHkB1QXoFosRuAgmY4tVGSpHr+dEjyCakNInRKN7jVRoV0eynsZtK8onNoElMM0CkcByzFWaDULAuOikDzPp13DLI73a8JFmab3gblm3hpEgu0Bn3esr1qqXFlKPi9WVxCzjOfXytNgoX6wk7tMfEq5NUPnUVKjQsEDyitR/H3tYHApoUZlF8b6ibmPeA7wniWUwIDie3yI1sR5yYA63kDsN+RvwXwU6uurRKWOvUhL1Wd0yHBipq1bPtR2EC/m1EcPzmVv457PHvzgIzlXQLn71wreYcCM8aGSLgeJfGHQSj6tKRnZvpE7AVk2zFzsyhv5PunE/gB10x7qweFSrkAAAAASUVORK5CYII="""))
+    a.insert(4,PhotoImage(data=r"""iVBORw0KGgoAAAANSUhEUgAAABkAAAAZCAYAAADE6YVjAAAACXBIWXMAAFxGAABcRgEUlENBAAABt0lEQVRIDe2Uq0/DUBTG76Pt2AaBSTAIggSLg0BQBANyCBR2giAIySSTJAQHBkGCJOEPAINAgyJoQoKYQJFtbfnd0YZ2TR/Dkew0X27POd85X++rQozsX6xASSq7JPX4MB9rKWtSiHKxEkdbs+AWPICVIlWO0lsBv+lYdiW3BvJdybJ9A96faDCWVmQrPQ/nCngB/43Y/iDfGgwIIVcjsWn8Kv5XJCZsrRwp1B6xIynlTJjzfd8DtdAPx4SIlMIjqQyBAl/IkPozOlovIdyCt8YYSyJofJ8nZgmRWJYmlPVLHGXVcA7IN2g23KGIN417UjJ9IVzWfJPMMc0X44xiXpGZnNJqB4EcbrpgXuEUpbvBWqd3ycn0NziD02ZHmuz/RwYnN5UpwjHRvvRP6LKM0I05bH+xTBHOFnsvyx239wK2mVUdoddhhTJFzJdHD33H611zeVaIn4HYBc0SToiYxqExD2O/ARIdz31nVg2CG3AfQ64Z8SXQ0Zh5T4gQuzSJwJ4ZP0MnOnbd3j1t12l6CNomxwd1Qf5y2sqa4PK1wDk/x7lo47R3eAvwL0C9UuWPP7LRCpgV+AbvnIHKeRKaYQAAAABJRU5ErkJggg=="""))
+    return a
+
 
 def addDictOption( opts, choicesDict, default, name, helpStr=None ):
     """Convenience function to add choices dicts to OptionParser.
